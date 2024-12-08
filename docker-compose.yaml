@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+  training:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/workspace/car_price_prediction
+    command: python src/train.py
+
+  serving:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/workspace/car_price_prediction
+    ports:
+      - "5000:5000"
+    command: python src/serve.py
+    environment:
+      - FLASK_RUN_HOST=0.0.0.0
+  mlflow:
+    build:
+      context: ./mlflow
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./mlflow/mlflow_config:/mlflow
+    environment:
+      - MLFLOW_TRACKING_URI=http://0.0.0.0:5000
+
