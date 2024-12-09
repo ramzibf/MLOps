@@ -1,9 +1,9 @@
 pandas
 numpy
 scikit-learn
-dvc
 mlflow
 flask
+dvc
 gunicorn
 matplotlib
-jupyter
+seaborn

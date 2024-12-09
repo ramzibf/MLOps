@@ -1,42 +1,45 @@
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
 import mlflow
 import mlflow.sklearn
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.metrics import mean_squared_error
-import pickle
-import os
+import yaml
+from models import get_models
 
-mlflow.set_tracking_uri("http://localhost:5001")
+# Load configuration
+with open("params.yaml", "r") as file:
+    params = yaml.safe_load(file)
+
+# Load data
+data = pd.read_csv("data/processed_data.csv")
+X = data.drop(columns=["selling_price"])
+y = data["selling_price"]
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=params["data"]["test_size"], random_state=params["data"]["random_state"]
+)
+
+# Load models
+models = get_models()
+
+# MLflow experiment
 mlflow.set_experiment("Car Price Prediction")
 
-def train_model(model_name, train_path, model_path):
-    data = pd.read_csv(train_path)
-    X = data.drop(columns=["price"])
-    y = data["price"]
-    
-    models = {
-        "random_forest": RandomForestRegressor(),
-        "linear_regression": LinearRegression(),
-        "decision_tree": DecisionTreeRegressor(),
-    }
-    
-    model = models[model_name]
-    model.fit(X, y)
-    predictions = model.predict(X)
-    mse = mean_squared_error(y, predictions)
-    
-    # Logging dans MLflow
-    with mlflow.start_run():
-        mlflow.log_param("model", model_name)
-        mlflow.log_metric("mse", mse)
-        mlflow.sklearn.log_model(model, f"models/{model_name}")
-    
-    # Sauvegarder localement
-    os.makedirs(model_path, exist_ok=True)
-    with open(f"{model_path}/{model_name}.pkl", "wb") as f:
-        pickle.dump(model, f)
+for name, model in models.items():
+    with mlflow.start_run(run_name=name):
+        # Train model
+        model.fit(X_train, y_train)
 
-if __name__ == "__main__":
-    train_model("random_forest", "data/processed/train.csv", "models")
+        # Evaluate model
+        predictions = model.predict(X_test)
+        mse = mean_squared_error(y_test, predictions)
+        r2 = r2_score(y_test, predictions)
+
+        # Log metrics
+        mlflow.log_metric("mse", mse)
+        mlflow.log_metric("r2_score", r2)
+
+        # Log model
+        mlflow.sklearn.log_model(model, f"models/{name}")
+        print(f"Model {name} logged with R2: {r2}")
